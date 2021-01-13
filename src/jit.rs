@@ -17,8 +17,8 @@ use std::fmt::Error as FormatterError;
 use std::io::{Error, ErrorKind};
 use std::ops::{Index, IndexMut};
 
-use ebpf;
-use JitProgram;
+use crate::ebpf;
+use crate::JitProgram;
 
 extern crate libc;
 
@@ -457,7 +457,7 @@ impl<'a> JitMemory<'a> {
     }
 
     fn jit_compile(&mut self, prog: &[u8], use_mbuff: bool, update_data_ptr: bool,
-                   helpers: &HashMap<u32, ebpf::Helper>) -> Result<(), Error> {
+                   _helpers: &HashMap<u32, ebpf::Helper>) -> Result<(), Error> {
         emit_push(self, RBP);
         emit_push(self, RBX);
         emit_push(self, R13);
@@ -777,6 +777,7 @@ impl<'a> JitMemory<'a> {
                     // For JIT, helpers in use MUST be registered at compile time. They can be
                     // updated later, but not created after compiling (we need the address of the
                     // helper function in the JIT-compiled program).
+                    /*
                     if let Some(helper) = helpers.get(&(insn.imm as u32)) {
                         // We reserve RCX for shifts
                         emit_mov(self, R9, RCX);
@@ -786,6 +787,9 @@ impl<'a> JitMemory<'a> {
                                        format!("[JIT] Error: unknown helper function (id: {:#x})",
                                                insn.imm as u32)))?;
                     };
+                    */
+                    Err(Error::new(ErrorKind::Other,
+                        format!("[JIT] CALL not implemented")))?;
                 },
                 ebpf::TAIL_CALL  => { unimplemented!() },
                 ebpf::EXIT       => {

@@ -21,6 +21,8 @@
 
 #![cfg_attr(feature = "cargo-clippy", allow(redundant_field_names, single_match, cast_lossless, doc_markdown, match_same_arms, unreadable_literal))]
 
+#![feature(fn_traits)]
+
 extern crate byteorder;
 extern crate combine;
 extern crate time;
@@ -51,7 +53,7 @@ mod verifier;
 pub type Verifier = fn(prog: &[u8]) -> Result<(), Error>;
 
 /// eBPF helper function.
-pub type Helper = fn (u64, u64, u64, u64, u64) -> u64;
+pub type Helper = ebpf::Helper;
 
 /// eBPF Jit-compiled program.
 pub type JitProgram = unsafe fn(*mut u8, usize, *mut u8, usize, usize, usize) -> u64;
@@ -276,7 +278,7 @@ impl<'a> EbpfVmMbuff<'a> {
     /// ```
     #[allow(unknown_lints)]
     #[allow(cyclomatic_complexity)]
-    pub fn execute_program(&self, mem: &[u8], mbuff: &[u8]) -> Result<u64, Error> {
+    pub async fn execute_program(&mut self, mem: &[u8], mbuff: &[u8]) -> Result<u64, Error> {
         const U32MAX: u64 = u32::MAX as u64;
 
         let prog = match self.prog { 
@@ -563,8 +565,8 @@ impl<'a> EbpfVmMbuff<'a> {
                 ebpf::JSLE_REG   => if (reg[_dst] as i64) <= reg[_src] as i64 { insn_ptr = (insn_ptr as i16 + insn.off) as usize; },
                 // Do not delegate the check to the verifier, since registered functions can be
                 // changed after the program has been verified.
-                ebpf::CALL       => if let Some(function) = self.helpers.get(&(insn.imm as u32)) {
-                    reg[0] = function(reg[1], reg[2], reg[3], reg[4], reg[5]);
+                ebpf::CALL       => if let Some(function) = self.helpers.get_mut(&(insn.imm as u32)) {
+                    reg[0] = function.call_mut((reg[1], reg[2], reg[3], reg[4], reg[5])).await;
                 } else {
                     Err(Error::new(ErrorKind::Other, format!("Error: unknown helper function (id: {:#x})", insn.imm as u32)))?;
                 },
@@ -926,7 +928,7 @@ impl<'a> EbpfVmFixedMbuff<'a> {
     /// let res = vm.execute_program(mem).unwrap();
     /// assert_eq!(res, 3);
     /// ```
-    pub fn register_helper(&mut self, key: u32, function: fn (u64, u64, u64, u64, u64) -> u64) -> Result<(), Error> {
+    pub fn register_helper(&mut self, key: u32, function: Helper) -> Result<(), Error> {
         self.parent.register_helper(key, function)
     }
 
@@ -960,7 +962,7 @@ impl<'a> EbpfVmFixedMbuff<'a> {
     /// let res = vm.execute_program(mem).unwrap();
     /// assert_eq!(res, 0xdd);
     /// ```
-    pub fn execute_program(&mut self, mem: &'a mut [u8]) -> Result<u64, Error> {
+    pub async fn execute_program(&mut self, mem: &'a mut [u8]) -> Result<u64, Error> {
         let l = self.mbuff.buffer.len();
         // Can this ever happen? Probably not, should be ensured at mbuff creation.
         if self.mbuff.data_offset + 8 > l || self.mbuff.data_end_offset + 8 > l {
@@ -969,7 +971,7 @@ impl<'a> EbpfVmFixedMbuff<'a> {
         }
         LittleEndian::write_u64(&mut self.mbuff.buffer[(self.mbuff.data_offset) .. ], mem.as_ptr() as u64);
         LittleEndian::write_u64(&mut self.mbuff.buffer[(self.mbuff.data_end_offset) .. ], mem.as_ptr() as u64 + mem.len() as u64);
-        self.parent.execute_program(mem, &self.mbuff.buffer)
+        self.parent.execute_program(mem, &self.mbuff.buffer).await
     }
 
     /// JIT-compile the loaded program. No argument required for this.
@@ -1228,7 +1230,7 @@ impl<'a> EbpfVmRaw<'a> {
     /// let res = vm.execute_program(mem).unwrap();
     /// assert_eq!(res, 0x10000000);
     /// ```
-    pub fn register_helper(&mut self, key: u32, function: fn (u64, u64, u64, u64, u64) -> u64) -> Result<(), Error> {
+    pub fn register_helper(&mut self, key: u32, function: Helper) -> Result<(), Error> {
         self.parent.register_helper(key, function)
     }
 
@@ -1253,8 +1255,8 @@ impl<'a> EbpfVmRaw<'a> {
     /// let res = vm.execute_program(mem).unwrap();
     /// assert_eq!(res, 0x22cc);
     /// ```
-    pub fn execute_program(&self, mem: &'a mut [u8]) -> Result<u64, Error> {
-        self.parent.execute_program(mem, &[])
+    pub async fn execute_program(&mut self, mem: &'a mut [u8]) -> Result<u64, Error> {
+        self.parent.execute_program(mem, &[]).await
     }
 
     /// JIT-compile the loaded program. No argument required for this.
@@ -1491,7 +1493,7 @@ impl<'a> EbpfVmNoData<'a> {
     /// let res = vm.execute_program().unwrap();
     /// assert_eq!(res, 0x1000);
     /// ```
-    pub fn register_helper(&mut self, key: u32, function: fn (u64, u64, u64, u64, u64) -> u64) -> Result<(), Error> {
+    pub fn register_helper(&mut self, key: u32, function: Helper) -> Result<(), Error> {
         self.parent.register_helper(key, function)
     }
 
@@ -1536,8 +1538,8 @@ impl<'a> EbpfVmNoData<'a> {
     /// let res = vm.execute_program().unwrap();
     /// assert_eq!(res, 0x1122);
     /// ```
-    pub fn execute_program(&self) -> Result<u64, Error> {
-        self.parent.execute_program(&mut [])
+    pub async fn execute_program(&mut self) -> Result<u64, Error> {
+        self.parent.execute_program(&mut []).await
     }
 
     /// Execute the previously JIT-compiled program, without providing pointers to any memory area

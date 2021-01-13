@@ -12,7 +12,7 @@
 
 use combine::char::{alpha_num, char, digit, hex_digit, spaces, string};
 use combine::{between, eof, many, many1, one_of, optional, Parser, ParseError, ParseResult, parser,
-              sep_by, try, State, Stream};
+              sep_by, r#try, State, Stream};
 use combine::primitives::{Error, Info};
 
 /// Operand of an instruction.
@@ -54,7 +54,7 @@ fn integer<I>(input: I) -> ParseResult<i64, I>
         .with(many1(hex_digit()))
         .map(|x: String| u64::from_str_radix(&x, 16).unwrap() as i64);
     let dec = many1(digit()).map(|x: String| i64::from_str_radix(&x, 10).unwrap());
-    (sign, try(hex).or(dec)).map(|(s, x)| s * x).parse_stream(input)
+    (sign, r#try(hex).or(dec)).map(|(s, x)| s * x).parse_stream(input)
 }
 
 fn register<I>(input: I) -> ParseResult<i64, I>
