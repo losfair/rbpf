@@ -592,8 +592,11 @@ impl<'a> JitMemory<'a> {
                     emit_store(self, OperandSize::S32, src, dst, insn.off as i32),
                 ebpf::ST_DW_REG  =>
                     emit_store(self, OperandSize::S64, src, dst, insn.off as i32),
-                ebpf::ST_W_XADD  => unimplemented!(),
-                ebpf::ST_DW_XADD => unimplemented!(),
+                ebpf::ST_W_XADD  => 
+                    Err(Error::new(ErrorKind::Other,
+                        format!("[JIT] ST_W_XADD not implemented")))?,
+                ebpf::ST_DW_XADD => Err(Error::new(ErrorKind::Other,
+                    format!("[JIT] ST_DW_XADD not implemented")))?,
 
                 // BPF_ALU class
                 ebpf::ADD32_IMM  => emit_alu32_imm32(self, 0x81, 0, dst, insn.imm),
@@ -791,7 +794,8 @@ impl<'a> JitMemory<'a> {
                     Err(Error::new(ErrorKind::Other,
                         format!("[JIT] CALL not implemented")))?;
                 },
-                ebpf::TAIL_CALL  => { unimplemented!() },
+                ebpf::TAIL_CALL  => Err(Error::new(ErrorKind::Other,
+                    format!("[JIT] TAIL_CALL not implemented")))?,
                 ebpf::EXIT       => {
                     if insn_ptr != prog.len() / ebpf::INSN_SIZE - 1 {
                         emit_jmp(self, TARGET_PC_EXIT);

@@ -442,8 +442,10 @@ impl<'a> EbpfVmMbuff<'a> {
                     check_mem_store(x as u64, 8, insn_ptr)?;
                     *x = reg[_src] as u64;
                 },
-                ebpf::ST_W_XADD  => unimplemented!(),
-                ebpf::ST_DW_XADD => unimplemented!(),
+                ebpf::ST_W_XADD  => Err(Error::new(ErrorKind::Other,
+                    format!("ST_W_XADD not implemented")))?,
+                ebpf::ST_DW_XADD => Err(Error::new(ErrorKind::Other,
+                    format!("ST_DW_XADD not implemented")))?,
 
                 // BPF_ALU class
                 // TODO Check how overflow works in kernel. Should we &= U32MAX all src register value
@@ -570,7 +572,7 @@ impl<'a> EbpfVmMbuff<'a> {
                 } else {
                     Err(Error::new(ErrorKind::Other, format!("Error: unknown helper function (id: {:#x})", insn.imm as u32)))?;
                 },
-                ebpf::TAIL_CALL  => unimplemented!(),
+                ebpf::TAIL_CALL  => Err(Error::new(ErrorKind::Other, format!("Error: TAIL_CALL not implemented")))?,
                 ebpf::EXIT       => return Ok(reg[0]),
 
                 _                => unreachable!()

@@ -80,8 +80,8 @@ fn check_load_dw(prog: &[u8], insn_ptr: usize) -> Result<(), Error> {
 
 fn check_jmp_offset(prog: &[u8], insn_ptr: usize) -> Result<(), Error> {
     let insn = ebpf::get_insn(prog, insn_ptr);
-    if insn.off == -1 {
-        reject(format!("infinite loop (insn #{:?})", insn_ptr))?;
+    if insn.off < 0 {
+        reject(format!("jump backward (insn #{:?})", insn_ptr))?;
     }
 
     let dst_insn_ptr = insn_ptr as isize + 1 + insn.off as isize;
@@ -152,8 +152,8 @@ pub fn check(prog: &[u8]) -> Result<(), Error> {
             ebpf::ST_H_REG   => store = true,
             ebpf::ST_W_REG   => store = true,
             ebpf::ST_DW_REG  => store = true,
-            ebpf::ST_W_XADD  => { unimplemented!(); },
-            ebpf::ST_DW_XADD => { unimplemented!(); },
+            ebpf::ST_W_XADD  => reject(format!("ST_W_XADD not implemented (insn #{:?})", insn_ptr))?,
+            ebpf::ST_DW_XADD => reject(format!("ST_DW_XADD not implemented (insn #{:?})", insn_ptr))?,
 
             // BPF_ALU class
             ebpf::ADD32_IMM  => {},
