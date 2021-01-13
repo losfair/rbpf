@@ -384,7 +384,7 @@ pub const BPF_CLS_MASK    : u8 = 0x07;
 pub const BPF_ALU_OP_MASK : u8 = 0xf0;
 
 /// Prototype of an eBPF helper function.
-pub type Helper = Box<dyn FnMut(&mut [u8], u64, u64, u64, u64, u64) -> Box<dyn std::future::Future<Output = u64> + Unpin>>;
+pub type Helper = Box<dyn FnMut(&mut [u8], u64, u64, u64, u64, u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = u64>>>>;
 
 /// An eBPF instruction.
 ///
